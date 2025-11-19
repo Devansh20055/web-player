@@ -1,295 +1,159 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Shaka ClearKey Player</title>
-
-  <!-- Shaka Player (v4.11.0 to match warnings you saw earlier) -->
-  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.11.0/dist/shaka-player.compiled.js"></script>
-
+  <meta charset="UTF-8">
+  <title>Video Player</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script>
   <style>
-    :root{--bg:#0f1720;--panel:#0b1220;--accent:#00b3ff;--muted:#91a0b3}
-    html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:Inter,system-ui,Arial}
-    .wrap{min-height:100vh;display:flex;flex-direction:column;gap:12px;padding:18px;box-sizing:border-box}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    h1{font-size:18px;margin:0}
-    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
-    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-    input[type=text]{width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff;box-sizing:border-box}
-    .controls{display:flex;gap:8px;flex-wrap:wrap}
-    button{background:var(--accent);color:#041023;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
-    #videoContainer{height:60vh;border-radius:8px;overflow:hidden;background:#000;position:relative}
-    video{width:100%;height:100%;object-fit:contain;background:#000}
-    .seek-btn{position:fixed;right:20px;bottom:20px;background:#ffcc00;color:#000;border:none;padding:12px 14px;border-radius:8px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,0.4)}
-    .meta{font-size:13px;color:var(--muted);margin-top:6px}
-    .small{font-size:12px;color:var(--muted)}
-    pre{white-space:pre-wrap;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;max-height:160px;overflow:auto;font-size:12px}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <header>
-      <h1>Shaka ClearKey Player — Clean (no JWPlayer)</h1>
-      <div class="small">Supports DASH (.mpd) & HLS (.m3u8) + ClearKey</div>
-    </header>
-
-    <div class="panel">
-      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">
-        <div>
-          <label for="manifest">Stream URL (mpd or m3u8)</label>
-          <input id="manifest" type="text" placeholder="https://example.com/stream.mpd or .m3u8" />
-        </div>
-        <div style="min-width:220px">
-          <label for="autoplay">Autoplay</label>
-          <div style="display:flex;gap:8px">
-            <button id="btnPlay">Play</button>
-            <button id="btnUnload">Unload</button>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-        <div>
-          <label for="kid">ClearKey kid (optional)</label>
-          <input id="kid" type="text" placeholder="kid (hex or base64), e.g. KBqI... or 0a1b..." />
-        </div>
-        <div>
-          <label for="key">ClearKey key (optional)</label>
-          <input id="key" type="text" placeholder="key (base64 or hex) e.g. Rydat... or 4d... " />
-        </div>
-      </div>
-
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div class="small">You can also pass via URL params: <code>?url=...&kid=...&key=...</code></div>
-      </div>
-    </div>
-
-    <div id="videoContainer" class="panel">
-      <video id="video" playsinline controls></video>
-    </div>
-
-    <div class="panel">
-      <div class="meta">Console / debug</div>
-      <pre id="log">Ready.</pre>
-    </div>
-  </div>
-
-  <button class="seek-btn" id="seek19">+19s ▶</button>
-
-<script>
-/*
-  Shaka ClearKey player
-  - Accepts kid/key in hex or base64; tries common conversions and registers them in drm.clearKeys
-  - Works for .mpd and .m3u8
-  - Requires the file to be CORS-enabled and playable in browser
-*/
-
-/* ---- Utilities ---- */
-function log(...args){
-  const el = document.getElementById('log');
-  const text = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ');
-  el.textContent = (el.textContent ? el.textContent + '\n' : '') + text;
-  console.log(...args);
-}
-function isBase64(str){
-  try{ return btoa(atob(str)) === str.replace(/\s/g,''); }catch(e){ return false; }
-}
-function isHex(str){ return /^[0-9a-fA-F]+$/.test(str) && (str.length % 2 === 0); }
-function hexToUint8(hex){
-  hex = hex.replace(/^0x/i,'');
-  if(hex.length % 2) hex = '0' + hex;
-  const len = hex.length/2;
-  const out = new Uint8Array(len);
-  for(let i=0;i<len;i++) out[i] = parseInt(hex.substr(i*2,2),16);
-  return out;
-}
-function base64ToUint8(b64){
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
-  return arr;
-}
-function uint8ToBase64(u8){
-  let s = '';
-  for(let i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]);
-  return btoa(s);
-}
-function toBase64IfHexOrPass(value){
-  // if hex -> convert to base64; if already looks like base64 -> return as-is
-  if(!value) return null;
-  value = value.trim();
-  if(isHex(value)){
-    return uint8ToBase64(hexToUint8(value));
-  }
-  // maybe contains hyphens in UUID form? remove hyphens and try hex
-  const compact = value.replace(/-/g,'');
-  if(isHex(compact)) return uint8ToBase64(hexToUint8(compact));
-  // if it looks like base64, accept
-  if(/[+/=]/.test(value) || value.length % 4 === 0) return value;
-  // fallback: return value
-  return value;
-}
-
-/* ---- Shaka bootstrap ---- */
-const video = document.getElementById('video');
-let player;
-
-async function initShaka(){
-  if(player) return player;
-  if(!window.shaka){
-    log('Shaka not found; check network or CDN');
-    throw new Error('Shaka not available');
-  }
-  shaka.polyfill.installAll();
-  if(!shaka.Player.isBrowserSupported()){
-    log('Browser not supported by Shaka');
-    throw new Error('Browser not supported');
-  }
-  player = new shaka.Player(video);
-
-  // Optional: attach basic event listeners
-  player.addEventListener('error', (e) => {
-    log('ERROR: ', e.detail ? e.detail : e);
-  });
-  player.addEventListener('buffering', (e) => {
-    log('buffering:', e);
-  });
-
-  log('Shaka initialized (v' + shaka.Player.version + ')');
-  return player;
-}
-
-/* ---- Configure ClearKey mapping helper ---- */
-function buildClearKeyMap(kidInput, keyInput){
-  // returns object where key: kid-in-base64 OR hex (Shaka accepts base64 for clearKeys), value: keyBase64
-  const map = {};
-  if(!kidInput || !keyInput) return map;
-
-  // try sanitize
-  const kidTrim = kidInput.trim();
-  const keyTrim = keyInput.trim();
-
-  // try conversions (kid): raw, remove hyphens, hex->base64, base64 as-is
-  const kidCandidates = new Set();
-
-  // as provided
-  kidCandidates.add(kidTrim);
-
-  // hyphenless
-  kidCandidates.add(kidTrim.replace(/-/g,''));
-
-  // if hex -> to base64
-  if(isHex(kidTrim)) kidCandidates.add(uint8ToBase64(hexToUint8(kidTrim)));
-  const kidCompact = kidTrim.replace(/-/g,'');
-  if(isHex(kidCompact)) kidCandidates.add(uint8ToBase64(hexToUint8(kidCompact)));
-
-  // key candidates: if hex -> convert to base64; else base64 as provided
-  let keyBase64 = null;
-  if(isHex(keyTrim)) keyBase64 = uint8ToBase64(hexToUint8(keyTrim));
-  else if(isBase64(keyTrim)) keyBase64 = keyTrim;
-  else keyBase64 = toBase64IfHexOrPass(keyTrim);
-
-  // Create mapping for each kid candidate to keyBase64
-  for(const candidate of kidCandidates){
-    if(!candidate) continue;
-    // prefer base64 kid if conversion succeeded
-    let kidAsBase64 = candidate;
-    if(isHex(candidate)) kidAsBase64 = uint8ToBase64(hexToUint8(candidate));
-    else if(isHex(candidate.replace(/-/g,''))) kidAsBase64 = uint8ToBase64(hexToUint8(candidate.replace(/-/g,'')));
-    // add both forms (raw and base64) to increase chance Shaka matches
-    map[candidate] = keyBase64;
-    map[kidAsBase64] = keyBase64;
-  }
-
-  return map;
-}
-
-/* ---- Player logic ---- */
-async function loadAsset(manifestUrl, kidVal, keyVal){
-  try{
-    await initShaka();
-
-    // clear previous
-    if(player.getMetadata && typeof player.unload === 'function'){
-      await player.unload();
+    body {
+      margin: 0;
+      font-family: 'Arial', sans-serif;
+      background-color: #000;
+      color: #fff;
+      overflow: hidden;
     }
 
-    const config = {};
-    // If user provided key/kid, wire them up into drm.clearKeys
-    if(kidVal && keyVal){
-      const clearMap = buildClearKeyMap(kidVal, keyVal);
-      if(Object.keys(clearMap).length){
-        config.drm = { clearKeys: clearMap };
-        log('Applying clearKeys config:', clearMap);
+    #jwplayerDiv {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #error {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #444;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      z-index: 1000;
+    }
+
+    #error.show {
+      display: block;
+    }
+
+    #error h2 {
+      color: #ff4444;
+      margin-bottom: 15px;
+    }
+
+    #error p {
+      color: #ccc;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="jwplayerDiv"></div>
+  <div id="error">
+    <h2>Error</h2>
+    <p id="errorMessage"></p>
+  </div>
+
+  <script type="text/javascript">
+    // Function to get URL parameters
+    function getParameterByName(name, url) {
+      if (!url) url = window.location.href;
+      name = name.replace(/[\[\]]/g, "\\$&");
+      var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+      if (!results) return null;
+      if (!results[2]) return '';
+      return decodeURIComponent(results[2].replace(/\+/g, " "));
+    }
+
+    // Show error message
+    function showError(message) {
+      var errorDiv = document.getElementById('error');
+      var errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = message;
+      errorDiv.classList.add('show');
+    }
+
+    // Wait for JWPlayer to load
+    function waitForJWPlayer(callback) {
+      if (typeof jwplayer === 'function') {
+        callback();
+      } else {
+        setTimeout(function () {
+          waitForJWPlayer(callback);
+        }, 100);
       }
     }
 
-    // Additional safe defaults
-    config.streaming = config.streaming || {};
-    config.streaming.rebufferingGoal = 0.5;
+    // Initialize player
+    waitForJWPlayer(function () {
+      // Get URL parameters
+      var fileUrl = getParameterByName('url');
+      var keysParam = getParameterByName('keys');
 
-    player.configure(config);
-    log('Player.configure done:', config);
+      // Validate URL
+      if (!fileUrl) {
+        showError('No video URL provided. Please use: ?url=YOUR_VIDEO_URL&keys=kid:key');
+        return;
+      }
 
-    // Try to load manifest
-    log('Loading', manifestUrl);
-    await player.load(manifestUrl);
-    log('Loaded successfully');
-    // Autoplay attempt if allowed
-    try { await video.play(); } catch(e) { log('Autoplay blocked:', e); }
-  }catch(err){
-    log('Failed to load', err);
-  }
-}
+      // Parse keys if provided (format: kid:key)
+      var kid = null;
+      var key = null;
+      
+      if (keysParam) {
+        var keyParts = keysParam.split(':');
+        if (keyParts.length === 2) {
+          kid = keyParts[0];
+          key = keyParts[1];
+        }
+      }
 
-/* ---- UI wiring ---- */
-document.getElementById('btnPlay').addEventListener('click', () => {
-  const url = document.getElementById('manifest').value.trim();
-  const kid = document.getElementById('kid').value.trim();
-  const key = document.getElementById('key').value.trim();
-  if(!url){ alert('Please provide a manifest URL'); return; }
-  loadAsset(url, kid, key);
-});
+      // Determine stream type
+      var isMpd = fileUrl.toLowerCase().includes('.mpd');
+      var isM3U8 = fileUrl.toLowerCase().includes('.m3u8');
 
-document.getElementById('btnUnload').addEventListener('click', async () => {
-  if(player){
-    try{ await player.unload(); log('Unloaded.'); }catch(e){ log('Unload failed', e); }
-  }
-});
+      // Set up player configuration
+      var playerSetup = {
+        file: fileUrl,
+        autostart: true,
+        width: "100%",
+        height: "100%"
+      };
 
-// +19s button
-document.getElementById('seek19').addEventListener('click', () => {
-  try{
-    const cur = video.currentTime || 0;
-    video.currentTime = cur + 19;
-  }catch(e){
-    log('Seek failed', e);
-  }
-});
+      // Configure based on stream type
+      if (isMpd) {
+        playerSetup.type = 'dash';
+        if (kid && key) {
+          playerSetup.drm = {
+            clearkey: {
+              keyId: kid,
+              key: key
+            }
+          };
+        }
+      } else if (isM3U8) {
+        playerSetup.type = 'hls';
+        if (kid && key) {
+          playerSetup.drm = {
+            clearkey: {
+              keyId: kid,
+              key: key
+            }
+          };
+        }
+      }
 
-/* ---- Auto-fill from URL params and auto-load if present ---- */
-window.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  const url = params.get('url') || params.get('data') || params.get('manifest') || '';
-  const kid = params.get('kid') || params.get('kidId') || '';
-  const key = params.get('key') || '';
-  if(url) document.getElementById('manifest').value = url;
-  if(kid) document.getElementById('kid').value = kid;
-  if(key) document.getElementById('key').value = key;
-
-  // If url present, attempt to load automatically (you can remove this behavior if undesired)
-  if(url) {
-    // small delay to ensure shaka script has been parsed
-    setTimeout(() => {
-      document.getElementById('btnPlay').click();
-    }, 200);
-  }
-
-  // log some helpful notes
-  log('Ready. Provide a manifest + optional ClearKey kid/key (hex or base64). Example:');
-  log(' ?url=https://…/master.mpd&kid=KBqI…&key=Rydat…');
-});
-</script>
+      // Initialize JWPlayer
+      jwplayer("jwplayerDiv").setup(playerSetup);
+    });
+  </script>
 </body>
+
 </html>
