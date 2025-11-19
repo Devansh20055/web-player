@@ -1,159 +1,28 @@
-<!DOCTYPE html>
-<html lang="en">
+<script type="module" src="https://cdn.jsdelivr.net/npm/dash-video-element/+esm"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/player.style/sutro/+esm"></script>
 
-<head>
-  <meta charset="UTF-8">
-  <title>Video Player</title>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Arial', sans-serif;
-      background-color: #000;
-      color: #fff;
-      overflow: hidden;
-    }
+<style>
+  media-theme-sutro {
+    --media-control-background: transparent;
+    --media-control-hover-background: rgba(255,255,255,0.15);
+    --media-primary-color: rgba(255,255,255,0.85);
+    --media-secondary-color: rgba(255,255,255,0.6);
+  }
 
-    #jwplayerDiv {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
+  media-theme-sutro media-control-bar {
+    background: transparent !important;
+  }
+</style>
 
-    #error {
-      display: none;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: #444;
-      padding: 30px;
-      border-radius: 8px;
-      text-align: center;
-      z-index: 1000;
-    }
-
-    #error.show {
-      display: block;
-    }
-
-    #error h2 {
-      color: #ff4444;
-      margin-bottom: 15px;
-    }
-
-    #error p {
-      color: #ccc;
-      font-size: 14px;
-    }
-  </style>
-</head>
-
-<body>
-  <div id="jwplayerDiv"></div>
-  <div id="error">
-    <h2>Error</h2>
-    <p id="errorMessage"></p>
-  </div>
-
-  <script type="text/javascript">
-    // Function to get URL parameters
-    function getParameterByName(name, url) {
-      if (!url) url = window.location.href;
-      name = name.replace(/[\[\]]/g, "\\$&");
-      var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-        results = regex.exec(url);
-      if (!results) return null;
-      if (!results[2]) return '';
-      return decodeURIComponent(results[2].replace(/\+/g, " "));
-    }
-
-    // Show error message
-    function showError(message) {
-      var errorDiv = document.getElementById('error');
-      var errorMessage = document.getElementById('errorMessage');
-      errorMessage.textContent = message;
-      errorDiv.classList.add('show');
-    }
-
-    // Wait for JWPlayer to load
-    function waitForJWPlayer(callback) {
-      if (typeof jwplayer === 'function') {
-        callback();
-      } else {
-        setTimeout(function () {
-          waitForJWPlayer(callback);
-        }, 100);
-      }
-    }
-
-    // Initialize player
-    waitForJWPlayer(function () {
-      // Get URL parameters
-      var fileUrl = getParameterByName('url');
-      var keysParam = getParameterByName('keys');
-
-      // Validate URL
-      if (!fileUrl) {
-        showError('No video URL provided. Please use: ?url=YOUR_VIDEO_URL&keys=kid:key');
-        return;
-      }
-
-      // Parse keys if provided (format: kid:key)
-      var kid = null;
-      var key = null;
-      
-      if (keysParam) {
-        var keyParts = keysParam.split(':');
-        if (keyParts.length === 2) {
-          kid = keyParts[0];
-          key = keyParts[1];
-        }
-      }
-
-      // Determine stream type
-      var isMpd = fileUrl.toLowerCase().includes('.mpd');
-      var isM3U8 = fileUrl.toLowerCase().includes('.m3u8');
-
-      // Set up player configuration
-      var playerSetup = {
-        file: fileUrl,
-        autostart: true,
-        width: "100%",
-        height: "100%"
-      };
-
-      // Configure based on stream type
-      if (isMpd) {
-        playerSetup.type = 'dash';
-        if (kid && key) {
-          playerSetup.drm = {
-            clearkey: {
-              keyId: kid,
-              key: key
-            }
-          };
-        }
-      } else if (isM3U8) {
-        playerSetup.type = 'hls';
-        if (kid && key) {
-          playerSetup.drm = {
-            clearkey: {
-              keyId: kid,
-              key: key
-            }
-          };
-        }
-      }
-
-      // Initialize JWPlayer
-      jwplayer("jwplayerDiv").setup(playerSetup);
-    });
-  </script>
-</body>
-
-</html>
+<media-theme-sutro style="width:100%">
+  <dash-video
+    slot="media"
+    src="https://liveplayback.arisemedicalacademy.com/vods3/_definst_/mp4:amazons3/arise-vod-content/prod/i678mfc4/Physiology11JulyP2_720.mp4/manifest.mpd"
+    crossorigin="anonymous"
+    playsinline
+    keySystem="clearkey"
+    clearkeys='{
+      "791fcf3e6861b9aafa50a402a7f42f5f": "90c9e76ce01aa9141356881be8399099"
+    }'
+  ></dash-video>
+</media-theme-sutro>
