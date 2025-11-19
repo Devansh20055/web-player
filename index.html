@@ -174,7 +174,12 @@
       position: 'bottom',
       autostart: true,
       stretching: "",
-      width: "100%"
+      width: "100%",
+
+      // CORS helpers:
+      crossorigin: "anonymous",
+      withCredentials: false,
+      cors: true,
     };
 
     if (isMpd) {
